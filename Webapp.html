@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Webapp</title>
+<style>
+:root{--bg:#000;--panel:#111;--line:#262626;--text:#f2f2f2;--mute:#8a8a8a;--accent:#2ee59d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:flex;height:100%}
+nav{width:34%;min-width:130px;max-width:260px;background:var(--panel);border-right:1px solid var(--line);padding:12px 8px;overflow-y:auto;transition:margin-left .25s}
+nav.closed{margin-left:calc(-1 * max(130px,min(34%,260px)))}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:15px;padding:12px 10px;border-radius:10px;margin-bottom:2px}
+nav button.active{background:var(--accent);color:#000;font-weight:600}
+nav .sub{padding-left:14px;font-size:14px;color:var(--mute)}
+nav .sub.active{color:#000}
+.arrow{float:right;opacity:.7}
+main{flex:1;padding:14px;overflow-y:auto;min-width:0}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.burger{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;width:42px;height:42px;font-size:20px}
+h1{font-size:20px;margin:0}
+.add{display:flex;gap:8px;margin-bottom:14px}
+input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px;font:inherit;font-size:16px}
+.btn{background:var(--accent);color:#000;border:0;border-radius:10px;padding:0 16px;font-weight:600;font-size:16px}
+.item{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.item.done span{text-decoration:line-through;color:var(--mute)}
+.item span{flex:1;word-break:break-word}
+.item input[type=checkbox]{flex:none;width:22px;height:22px;accent-color:var(--accent)}
+.del{background:none;border:0;color:var(--mute);font-size:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;width:100%;text-align:left;color:var(--text);font:inherit}
+.card b{color:var(--accent)}
+.empty{color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav id="nav"></nav>
+  <main>
+    <div class="top"><button class="burger" id="burger" aria-label="Menü">☰</button><h1 id="title"></h1></div>
+    <div id="view"></div>
+  </main>
+</div>
+<script>
+var PERIODS={taeglich:"Ziel täglich",woechentlich:"Ziel wöchentlich",monatlich:"Ziel monatlich",jaehrlich:"Ziel jährlich"};
+var MENU=[["start","Startbildschirm"],["aufgaben","Aufgaben"],["ziele","Ziele hinzufügen"],["gedanken","Gedanken"],["termine","Termine"]];
+var state={page:"start",open:true,zieleOpen:true,data:{}};
+try{var s=localStorage.getItem("webapp");if(s)state.data=JSON.parse(s)}catch(e){}
+function save(){try{localStorage.setItem("webapp",JSON.stringify(state.data))}catch(e){}}
+function list(k){return state.data[k]||(state.data[k]=[])}
+function esc(t){return t.replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function go(p){state.page=p;if(window.innerWidth<600&&p!=="ziele")state.open=false;render()}
+function renderNav(){
+  var h="";
+  MENU.forEach(function(m){
+    var k=m[0];
+    if(k==="ziele"){
+      var act=state.page==="ziele"||state.page in PERIODS;
+      h+='<button class="'+(act&&!(state.page in PERIODS)?"active":"")+'" onclick="toggleZiele()">'+m[1]+'<span class="arrow">'+(state.zieleOpen?"▾":"▸")+'</span></button>';
+      if(state.zieleOpen)Object.keys(PERIODS).forEach(function(p){h+='<button class="sub '+(state.page===p?"active":"")+'" onclick="go(\''+p+'\')">'+PERIODS[p]+'</button>'});
+    }else h+='<button class="'+(state.page===k?"active":"")+'" onclick="go(\''+k+'\')">'+m[1]+'</button>';
+  });
+  var n=document.getElementById("nav");n.innerHTML=h;n.className=state.open?"":"closed";
+}
+function toggleZiele(){state.zieleOpen=!state.zieleOpen;state.page="ziele";render()}
+function itemsHtml(k){
+  var a=list(k);if(!a.length)return'<p class="empty">Noch nichts da.</p>';
+  return a.map(function(x,i){return'<div class="item '+(x.d?"done":"")+'"><input type="checkbox" '+(x.d?"checked":"")+' onchange="tog(\''+k+'\','+i+')"><span>'+esc(x.t)+'</span><button class="del" onclick="rm(\''+k+'\','+i+')">×</button></div>'}).join("");
+}
+function addBox(k,ph){return'<div class="add"><input id="inp" placeholder="'+ph+'" onkeydown="if(event.key===\'Enter\')add(\''+k+'\')"><button class="btn" onclick="add(\''+k+'\')">+</button></div>'}
+function add(k){var i=document.getElementById("inp"),t=i.value.trim();if(!t)return;list(k).push({t:t,d:false});save();render()}
+function tog(k,i){list(k)[i].d=!list(k)[i].d;save();render()}
+function rm(k,i){list(k).splice(i,1);save();render()}
+function render(){
+  renderNav();var p=state.page,v="",t="";
+  if(p==="start"){
+    t="Startbildschirm";
+    v=MENU.filter(function(m){return m[0]!=="start"&&m[0]!=="ziele"}).map(function(m){return'<button class="card" onclick="go(\''+m[0]+'\')"><b>'+m[1]+'</b><br>'+list(m[0]).length+' Einträge</button>'}).join("");
+    var tot=0,open=0;Object.keys(PERIODS).forEach(function(k){tot+=list(k).length;open+=list(k).filter(function(x){return!x.d}).length});
+    v+='<button class="card" onclick="go(\'ziele\')"><b>Ziele</b><br>'+tot+' insgesamt, '+open+' offen</button>';
+  }else if(p==="ziele"){
+    t="Ziele hinzufügen";
+    v=Object.keys(PERIODS).map(function(k){return'<button class="card" onclick="go(\''+k+'\')"><b>'+PERIODS[k]+'</b><br>'+list(k).length+' Ziele</button>'}).join("");
+  }else if(p in PERIODS){
+    t=PERIODS[p];v=addBox(p,"Neues Ziel …")+itemsHtml(p);
+  }else{
+    t=MENU.filter(function(m){return m[0]===p})[0][1];v=addBox(p,"Neu …")+itemsHtml(p);
+  }
+  document.getElementById("title").textContent=t;
+  document.getElementById("view").innerHTML=v;
+}
+document.getElementById("burger").onclick=function(){state.open=!state.open;renderNav()};
+render();
+</script>
+</body>
+</html>
